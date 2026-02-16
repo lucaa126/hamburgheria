@@ -1,41 +1,25 @@
 <nav class="bg-zinc-900 border-b border-zinc-800 shadow-2xl w-full z-50 fixed top-0 left-0">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex justify-between items-center h-20">
-      
       <div class="flex-shrink-0 flex items-center gap-2">
         <span class="text-3xl">🍔</span>
-        <a href="#" class="text-2xl font-black text-amber-500 hover:text-amber-400 tracking-tighter uppercase transition-colors">
-          SmashBoss
-        </a>
+        <a href="#" class="text-2xl font-black text-amber-500 hover:text-amber-400 tracking-tighter uppercase transition-colors">SmashBoss</a>
       </div>
-
       <div class="hidden md:flex items-center space-x-8">
-        <a href="#" class="bg-amber-500 text-zinc-900 px-6 py-2.5 rounded-full font-black uppercase tracking-wider hover:bg-amber-400 transform hover:scale-105 transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)]">
-          Dashboard
-        </a>
+        <a href="#" class="bg-amber-500 text-zinc-900 px-6 py-2.5 rounded-full font-black uppercase tracking-wider hover:bg-amber-400 transform hover:scale-105 transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)]">Dashboard</a>
       </div>
-
       <div class="md:hidden flex items-center">
-        <button (click)="toggleMenu()" type="button" class="text-amber-500 hover:text-amber-400 focus:outline-none p-2">
-          <span class="sr-only">Apri menu</span>
-          <svg *ngIf="!isMobileMenuOpen" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-          <svg *ngIf="isMobileMenuOpen" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+        <button (click)="toggleMenu()" class="text-amber-500 hover:text-amber-400 p-2">
+          <svg *ngIf="!isMobileMenuOpen()" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          <svg *ngIf="isMobileMenuOpen()" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
-
     </div>
   </div>
-
-  <div class="md:hidden bg-zinc-900 border-b border-zinc-800 shadow-xl" [class.hidden]="!isMobileMenuOpen">
+  <div class="md:hidden bg-zinc-900 border-b border-zinc-800" [class.hidden]="!isMobileMenuOpen()">
     <div class="px-4 pt-2 pb-6">
       <div class="pt-4">
-        <a href="#" (click)="closeMenu()" class="block w-full text-center bg-amber-500 text-zinc-900 px-6 py-3 rounded-lg font-black uppercase tracking-wider hover:bg-amber-400 transition-colors">
-          Dashboard
-        </a>
+        <a href="#" (click)="closeMenu()" class="block w-full text-center bg-amber-500 text-zinc-900 px-6 py-3 rounded-lg font-black uppercase tracking-wider">Dashboard</a>
       </div>
     </div>
   </div>
@@ -47,84 +31,62 @@
   <div class="max-w-7xl mx-auto">
     
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-      <h1 class="text-4xl font-black uppercase tracking-widest text-amber-500">
-        Gestione Locale
-      </h1>
-      
+      <h1 class="text-4xl font-black uppercase tracking-widest text-amber-500">Gestione Locale</h1>
       <div class="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800 shadow-lg">
-        <button (click)="activeTab = 'ordini'" 
-                [ngClass]="activeTab === 'ordini' ? 'bg-amber-500 text-zinc-900 shadow-md' : 'text-zinc-400 hover:text-amber-500'"
-                class="px-6 py-2.5 rounded-md font-bold uppercase tracking-wider text-sm transition-all">
-          Ordini
-        </button>
-        <button (click)="activeTab = 'menu'" 
-                [ngClass]="activeTab === 'menu' ? 'bg-amber-500 text-zinc-900 shadow-md' : 'text-zinc-400 hover:text-amber-500'"
-                class="px-6 py-2.5 rounded-md font-bold uppercase tracking-wider text-sm transition-all">
-          Menù
-        </button>
+        <button (click)="activeTab.set('ordini')" [ngClass]="activeTab() === 'ordini' ? 'bg-amber-500 text-zinc-900 shadow-md' : 'text-zinc-400 hover:text-amber-500'" class="px-6 py-2.5 rounded-md font-bold uppercase tracking-wider text-sm transition-all">Ordini</button>
+        <button (click)="activeTab.set('menu')" [ngClass]="activeTab() === 'menu' ? 'bg-amber-500 text-zinc-900 shadow-md' : 'text-zinc-400 hover:text-amber-500'" class="px-6 py-2.5 rounded-md font-bold uppercase tracking-wider text-sm transition-all">Menù</button>
       </div>
     </div>
 
-    <div *ngIf="activeTab === 'ordini'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div *ngFor="let order of orders" class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-        
+    <div *ngIf="activeTab() === 'ordini'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      
+      <div *ngIf="orders().length === 0" class="col-span-full text-center py-12 text-zinc-500 font-bold uppercase">
+        Nessun ordine presente nel database.
+      </div>
+
+      <div *ngFor="let order of orders()" class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
         <div class="p-4 border-b border-zinc-800 flex justify-between items-center"
              [ngClass]="{
-               'bg-rose-950/30 border-rose-900': order.status === 'In Attesa',
-               'bg-amber-950/30 border-amber-900': order.status === 'In Preparazione',
-               'bg-emerald-950/30 border-emerald-900': order.status === 'Pronto'
+               'bg-rose-950/30 border-rose-900': order.stato === 'In preparazione',
+               'bg-emerald-950/30 border-emerald-900': order.stato === 'Pronto'
              }">
           <div>
-            <span class="text-2xl font-black text-white">{{ order.id }}</span>
-            <span class="text-zinc-400 text-sm ml-2">{{ order.time }}</span>
+            <span class="text-2xl font-black text-white">#{{ order.id }}</span>
           </div>
-          <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
-                [ngClass]="{
-                  'bg-rose-500/20 text-rose-400 border border-rose-500/50': order.status === 'In Attesa',
-                  'bg-amber-500/20 text-amber-400 border border-amber-500/50': order.status === 'In Preparazione',
-                  'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50': order.status === 'Pronto'
-                }">
-            {{ order.status }}
+          <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-zinc-600">
+            {{ order.stato }}
           </span>
         </div>
 
         <div class="p-4 flex-grow">
-          <p class="text-zinc-400 text-sm font-bold uppercase mb-3 border-b border-zinc-800 pb-2">
-            Cliente: <span class="text-amber-500">{{ order.customerName }}</span>
+          <p class="text-zinc-400 text-xs font-bold uppercase mb-3 border-b border-zinc-800 pb-2">
+            Ricevuto: <span class="text-zinc-200">{{ order.data_creazione | date:'short' }}</span>
           </p>
-          <ul class="space-y-3">
-            <li *ngFor="let item of order.items" class="flex justify-between items-start">
-              <div>
-                <span class="font-bold text-zinc-200">{{ item.quantity }}x {{ item.name }}</span>
-                <p *ngIf="item.notes" class="text-rose-400 text-xs mt-1 bg-rose-950/30 px-2 py-1 rounded">Nota: {{ item.notes }}</p>
-              </div>
-            </li>
-          </ul>
         </div>
 
         <div class="p-4 bg-zinc-950 border-t border-zinc-800">
           <div class="flex gap-2">
-            <button *ngIf="order.status === 'In Attesa'" (click)="changeOrderStatus(order.id, 'In Preparazione')" class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-black uppercase py-3 rounded-lg transition-colors">
-              Inizia a Preparare
-            </button>
-            <button *ngIf="order.status === 'In Preparazione'" (click)="changeOrderStatus(order.id, 'Pronto')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-900 font-black uppercase py-3 rounded-lg transition-colors">
+            <button *ngIf="order.stato === 'In preparazione'" (click)="changeOrderStatus(order.id, 'Pronto')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-900 font-black uppercase py-3 rounded-lg transition-colors">
               Segna come Pronto
             </button>
-            <button *ngIf="order.status === 'Pronto'" (click)="changeOrderStatus(order.id, 'In Attesa')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase py-3 rounded-lg transition-colors text-sm">
+            <button *ngIf="order.stato === 'Pronto'" (click)="changeOrderStatus(order.id, 'Consegnato')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase py-3 rounded-lg transition-colors text-sm">
               Consegnato
+            </button>
+            <button *ngIf="order.stato !== 'In preparazione' && order.stato !== 'Pronto'" (click)="changeOrderStatus(order.id, 'In preparazione')" class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-black uppercase py-3 rounded-lg transition-colors">
+              Inizia a Preparare
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div *ngIf="activeTab === 'menu'" class="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+    <div *ngIf="activeTab() === 'menu'" class="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
       
       <div class="p-4 md:p-6 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
           <button *ngFor="let cat of categories" 
-                  (click)="activeCategory = cat"
-                  [ngClass]="activeCategory === cat ? 'bg-amber-500 text-zinc-900' : 'bg-zinc-800 text-zinc-400 hover:text-amber-500'"
+                  (click)="activeCategory.set(cat)"
+                  [ngClass]="activeCategory() === cat ? 'bg-amber-500 text-zinc-900' : 'bg-zinc-800 text-zinc-400 hover:text-amber-500'"
                   class="px-4 py-2 rounded-lg font-bold uppercase text-xs tracking-wider whitespace-nowrap transition-colors">
             {{ cat }}
           </button>
@@ -139,32 +101,21 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-zinc-950 text-zinc-400 text-xs uppercase tracking-widest">
+              <th class="p-4 font-bold">ID</th>
               <th class="p-4 font-bold">Prodotto</th>
               <th class="p-4 font-bold">Categoria</th>
               <th class="p-4 font-bold">Prezzo</th>
-              <th class="p-4 font-bold text-center">Disponibilità</th>
               <th class="p-4 font-bold text-right">Azioni</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-zinc-800">
-            <ng-container *ngFor="let item of menuItems">
-              <tr *ngIf="activeCategory === 'Tutte' || item.category === activeCategory" class="hover:bg-zinc-800/50 transition-colors">
-                <td class="p-4 font-bold text-zinc-100">{{ item.name }}</td>
-                <td class="p-4 text-zinc-400 text-sm uppercase">{{ item.category }}</td>
-                <td class="p-4 text-amber-500 font-bold">€ {{ item.price | number:'1.2-2' }}</td>
-                
-                <td class="p-4 text-center">
-                  <button (click)="toggleAvailability(item)" 
-                          [ngClass]="item.available ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'"
-                          class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-transparent hover:border-current transition-all">
-                    {{ item.available ? 'Disponibile' : 'Esaurito' }}
-                  </button>
-                </td>
-                
+            <ng-container *ngFor="let item of menuItems()">
+              <tr *ngIf="activeCategory() === 'Tutte' || item.categoria === activeCategory()" class="hover:bg-zinc-800/50 transition-colors">
+                <td class="p-4 text-zinc-500 font-mono">#{{ item.id }}</td>
+                <td class="p-4 font-bold text-zinc-100">{{ item.nome }}</td>
+                <td class="p-4 text-zinc-400 text-sm uppercase">{{ item.categoria }}</td>
+                <td class="p-4 text-amber-500 font-bold">€ {{ item.prezzo }}</td>
                 <td class="p-4 flex justify-end gap-3">
-                  <button (click)="editProduct(item)" class="text-zinc-400 hover:text-amber-500 transition-colors" title="Modifica">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                  </button>
                   <button (click)="deleteMenuItem(item.id)" class="text-zinc-400 hover:text-rose-500 transition-colors" title="Elimina">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                   </button>
@@ -174,7 +125,40 @@
           </tbody>
         </table>
       </div>
-
     </div>
   </div>
 </main>
+
+<div *ngIf="showAddModal()" class="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
+  <div class="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
+      <h3 class="text-xl font-black uppercase tracking-widest text-amber-500">Nuovo Prodotto</h3>
+      <button (click)="closeModal()" class="text-zinc-400 hover:text-white">✕</button>
+    </div>
+    
+    <div class="p-6 space-y-4">
+      <div>
+        <label class="block text-zinc-400 text-xs font-bold uppercase mb-2">Nome Prodotto</label>
+        <input type="text" [(ngModel)]="newProduct.nome" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500">
+      </div>
+      <div>
+        <label class="block text-zinc-400 text-xs font-bold uppercase mb-2">Prezzo (€)</label>
+        <input type="number" [(ngModel)]="newProduct.prezzo" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500">
+      </div>
+      <div>
+        <label class="block text-zinc-400 text-xs font-bold uppercase mb-2">Categoria</label>
+        <select [(ngModel)]="newProduct.categoria" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500">
+          <option value="Panini">Panini</option>
+          <option value="Fritti">Fritti</option>
+          <option value="Bevande">Bevande</option>
+          <option value="Menu">Menu</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="p-4 bg-zinc-950 border-t border-zinc-800 flex justify-end gap-3">
+      <button (click)="closeModal()" class="px-6 py-2.5 rounded-lg font-bold text-zinc-400 hover:text-white">Annulla</button>
+      <button (click)="saveProduct()" class="bg-amber-500 hover:bg-amber-400 text-zinc-900 px-6 py-2.5 rounded-lg font-black uppercase tracking-wider">Salva</button>
+    </div>
+  </div>
+</div>
