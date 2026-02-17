@@ -9,6 +9,7 @@ interface Product {
   nome: string;
   prezzo: number;
   categoria: string;
+  immagine?: string;
 }
 
 interface Order {
@@ -27,7 +28,7 @@ interface Order {
 export class App implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   
-  // ⚠️ INCOLLA QUI IL TUO LINK CODESPACES (senza lo slash finale)
+  // ⚠️ ASSICURATI DI INSERIRE IL TUO LINK CODESPACES CORRETTO (senza lo slash finale)
   private apiUrl = 'https://silver-space-potato-r47pj5vpv74jh5r47-5000.app.github.dev';
 
   // --- STATO CON SIGNALS ---
@@ -35,14 +36,14 @@ export class App implements OnInit, OnDestroy {
   activeTab = signal<'ordini' | 'menu'>('ordini');
   activeCategory = signal('Tutte');
   
-  // Le liste dei dati ora sono Signals!
   orders = signal<Order[]>([]);
   menuItems = signal<Product[]>([]);
   showAddModal = signal(false);
 
-  // Variabili standard per configurazioni statiche o form
   categories = ['Tutte', 'Panini', 'Fritti', 'Bevande', 'Menu'];
-  newProduct = { nome: '', prezzo: 0, categoria: 'Panini' };
+  
+  // Aggiunto campo immagine vuoto di default
+  newProduct = { nome: '', prezzo: 0, categoria: 'Panini', immagine: '' };
   
   private pollingInterval: any;
 
@@ -50,14 +51,13 @@ export class App implements OnInit, OnDestroy {
     this.loadOrders();
     this.loadProducts();
 
-    // AUTO-REFRESH: Controlla nuovi ordini ogni 5 secondi in background
+    // AUTO-REFRESH: Controlla nuovi ordini ogni 5 secondi
     this.pollingInterval = setInterval(() => {
       this.loadOrders();
     }, 5000);
   }
 
   ngOnDestroy() {
-    // Pulisce il timer se cambiamo pagina
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
@@ -68,22 +68,35 @@ export class App implements OnInit, OnDestroy {
   closeMenu() { this.isMobileMenuOpen.set(false); }
   
   openAddProductModal() { this.showAddModal.set(true); }
+  
   closeModal() { 
     this.showAddModal.set(false); 
-    this.newProduct = { nome: '', prezzo: 0, categoria: 'Panini' };
+    this.newProduct = { nome: '', prezzo: 0, categoria: 'Panini', immagine: '' };
+  }
+
+  // Lettura del file immagine e conversione in Base64
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.newProduct.immagine = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   // --- CHIAMATE AL BACKEND ---
   loadProducts() {
     this.http.get<Product[]>(`${this.apiUrl}/products`).subscribe({
-      next: (data) => this.menuItems.set(data), // Aggiorna il signal
+      next: (data) => this.menuItems.set(data),
       error: (err) => console.error('Errore prodotti:', err)
     });
   }
 
   loadOrders() {
     this.http.get<Order[]>(`${this.apiUrl}/orders`).subscribe({
-      next: (data) => this.orders.set(data), // Aggiorna il signal (riflette i dati in tempo reale)
+      next: (data) => this.orders.set(data),
       error: (err) => console.error('Errore ordini:', err)
     });
   }
@@ -91,7 +104,6 @@ export class App implements OnInit, OnDestroy {
   changeOrderStatus(orderId: number, nuovoStato: string) {
     this.http.put(`${this.apiUrl}/orders/${orderId}`, { stato: nuovoStato }).subscribe({
       next: () => {
-        // Ricarica la lista per sicurezza, il signal aggiornerà l'interfaccia all'istante
         this.loadOrders();
       },
       error: (err) => console.error('Errore stato:', err)
@@ -102,7 +114,7 @@ export class App implements OnInit, OnDestroy {
     if(confirm('Sei sicuro di voler eliminare questo prodotto?')) {
       this.http.delete(`${this.apiUrl}/products/${id}`).subscribe({
         next: () => {
-          this.loadProducts(); // Il signal farà sparire la riga all'istante
+          this.loadProducts();
         },
         error: (err) => console.error('Errore eliminazione:', err)
       });
@@ -112,7 +124,7 @@ export class App implements OnInit, OnDestroy {
   saveProduct() {
     this.http.post(`${this.apiUrl}/products`, this.newProduct).subscribe({
       next: () => {
-        this.loadProducts(); // Il signal farà comparire il nuovo panino all'istante
+        this.loadProducts();
         this.closeModal();
       },
       error: (err) => console.error('Errore salvataggio:', err)
