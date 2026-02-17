@@ -1,38 +1,75 @@
 import 'package:flutter/material.dart';
+import 'dart:convert'; // Per convertire i dati in JSON
+import 'package:http/http.dart' as http; // Per le chiamate HTTP
 
 void main() {
   runApp(const SmashBossApp());
 }
 
-// --- COSTANTI DI STILE (Estratte dall'immagine) ---
-const Color kBackgroundColor = Color(0xFF0D0D0D); // Nero profondo
-const Color kSurfaceColor = Color(0xFF1E1E1E);    // Grigio scuro card
-const Color kPrimaryColor = Color(0xFFFF9F00);    // Arancione SmashBoss
-const Color kTextColor = Colors.white;
-const Color kSubTextColor = Colors.grey;
+// ==============================================================================
+// ⚠️ CONFIGURAZIONE SERVER
+// ==============================================================================
+// Ho inserito l'URL che ho visto nei tuoi log. Se cambia, aggiornalo qui.
+const String baseUrl = 'https://expert-space-fishstick-r4qgpxpwxrw9h5pg5-5000.app.github.dev';
+
+// --- COSTANTI DI STILE ---
+const Color kBackgroundColor = Color(0xFF0D0D0D);
+const Color kSurfaceColor = Color(0xFF1E1E1E);
+const Color kPrimaryColor = Color(0xFFFF9F00);
 
 // --- DATA MODEL ---
 class Product {
-  final String id;
+  final int id;
   final String name;
   final String category;
   final double price;
-  final IconData icon; // Uso icone per ora, sostituire con asset immagini
+  final IconData icon;
 
-  Product(this.id, this.name, this.category, this.price, this.icon);
+  Product({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.price,
+    required this.icon,
+  });
+
+  // Factory per creare un prodotto dal JSON del server Flask
+  // CORRETTO: Gestisce il prezzo anche se arriva come Stringa ("3.00")
+  factory Product.fromJson(Map<String, dynamic> json) {
+    dynamic rawPrice = json['prezzo'];
+    double finalPrice = 0.0;
+
+    if (rawPrice is String) {
+      // Se è una stringa (es: "3.00"), la convertiamo
+      finalPrice = double.tryParse(rawPrice) ?? 0.0;
+    } else if (rawPrice is num) {
+      // Se è già un numero (int o double)
+      finalPrice = rawPrice.toDouble();
+    }
+
+    return Product(
+      id: json['id'],
+      name: json['nome'],
+      category: json['categoria'],
+      price: finalPrice,
+      icon: _getIconForCategory(json['categoria']),
+    );
+  }
+
+  // Helper per assegnare icone in base alla categoria
+  static IconData _getIconForCategory(String category) {
+    switch (category.toUpperCase()) {
+      case 'PANINI':
+        return Icons.lunch_dining;
+      case 'FRITTI':
+        return Icons.tapas;
+      case 'BEVANDE':
+        return Icons.local_drink;
+      default:
+        return Icons.restaurant;
+    }
+  }
 }
-
-// --- MOCK DATA ---
-final List<Product> _allProducts = [
-  Product('1', 'SmashBoss Double', 'PANINI', 10.50, Icons.lunch_dining),
-  Product('2', 'Chicken Crunch', 'PANINI', 9.00, Icons.fastfood),
-  Product('3', 'Bacon King', 'PANINI', 11.50, Icons.lunch_dining),
-  Product('4', 'Patatine Cheddar', 'FRITTI', 5.50, Icons.tapas),
-  Product('5', 'Onion Rings', 'FRITTI', 4.50, Icons.donut_large),
-  Product('6', 'Coca Cola', 'BEVANDE', 3.00, Icons.local_drink),
-  Product('7', 'Birra Ichnusa', 'BEVANDE', 4.50, Icons.sports_bar),
-  Product('8', 'Acqua Nat.', 'BEVANDE', 1.50, Icons.water_drop),
-];
 
 class SmashBossApp extends StatelessWidget {
   const SmashBossApp({super.key});
@@ -46,7 +83,7 @@ class SmashBossApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: kBackgroundColor,
         primaryColor: kPrimaryColor,
-        fontFamily: 'Roboto', // Ideale: usare un font come 'Anton' o 'Impact'
+        fontFamily: 'Roboto',
         colorScheme: const ColorScheme.dark(
           primary: kPrimaryColor,
           surface: kSurfaceColor,
@@ -68,14 +105,56 @@ class TotemPage extends StatefulWidget {
 class _TotemPageState extends State<TotemPage> {
   String _selectedCategory = 'TUTTE';
   final Map<Product, int> _cart = {};
+  
+  // Stato per il caricamento prodotti
+  List<Product> _products = [];
+  bool _isFetchingProducts = true;
+  bool _isSendingOrder = false;
+  String? _errorMessage;
 
-  // Filtra i prodotti
-  List<Product> get _visibleProducts {
-    if (_selectedCategory == 'TUTTE') return _allProducts;
-    return _allProducts.where((p) => p.category == _selectedCategory).toList();
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts(); // Carica i prodotti all'avvio
   }
 
-  // Calcola Totale
+  // ============================================================================
+  // 📡 SCARICA PRODOTTI DAL SERVER (GET)
+  // ============================================================================
+  Future<void> _fetchProducts() async {
+    setState(() {
+      _isFetchingProducts = true;
+      _errorMessage = null;
+    });
+
+    try {
+      print("Fetching products from: $baseUrl/products");
+      final response = await http.get(Uri.parse('$baseUrl/products'));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _products = data.map((json) => Product.fromJson(json)).toList();
+          _isFetchingProducts = false;
+        });
+      } else {
+        throw Exception("Errore server: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Errore fetch: $e");
+      setState(() {
+        _isFetchingProducts = false;
+        _errorMessage = "Impossibile caricare il menu.\nVerifica la connessione.";
+      });
+    }
+  }
+
+  // Filtra i prodotti in base alla categoria selezionata
+  List<Product> get _visibleProducts {
+    if (_selectedCategory == 'TUTTE') return _products;
+    return _products.where((p) => p.category == _selectedCategory).toList();
+  }
+
   double get _totalPrice {
     double total = 0;
     _cart.forEach((product, qty) {
@@ -100,42 +179,96 @@ class _TotemPageState extends State<TotemPage> {
     });
   }
 
+  // ============================================================================
+  // 🚀 INVIA ORDINE A FLASK (POST)
+  // ============================================================================
+  Future<void> _submitOrderToFlask() async {
+    setState(() => _isSendingOrder = true);
+
+    try {
+      List<Map<String, dynamic>> itemsPayload = [];
+      
+      _cart.forEach((product, qty) {
+        itemsPayload.add({
+          "product_id": product.id,
+          "quantita": qty
+        });
+      });
+
+      final Map<String, dynamic> requestBody = {
+        "items": itemsPayload
+      };
+
+      print("Invio ordine a: $baseUrl/orders");
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final respData = jsonDecode(response.body);
+        
+        setState(() {
+          _cart.clear();
+          _isSendingOrder = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("ORDINE #${respData['order_id']} INVIATO! 🍔"),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        throw Exception("Server Error (${response.statusCode})");
+      }
+
+    } catch (e) {
+      setState(() => _isSendingOrder = false);
+      print("ERRORE INVIO: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Errore nell'invio dell'ordine."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ============================================================================
+  // UI BUILDER
+  // ============================================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          // --- COLONNA SINISTRA: MENU E CATEGORIE ---
+          // --- COLONNA SINISTRA (Prodotti) ---
           Expanded(
-            flex: 7, // 70% dello schermo
+            flex: 7,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(),
-                _buildCategorySelector(),
+                _buildTopBar(), 
+                
+                // Area Contenuto (Loader, Errore o Griglia)
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3, // 3 colonne di prodotti
-                      childAspectRatio: 0.85,
-                      crossAxisSpacing: 20,
-                      mainAxisSpacing: 20,
-                    ),
-                    itemCount: _visibleProducts.length,
-                    itemBuilder: (context, index) {
-                      final product = _visibleProducts[index];
-                      return _buildProductCard(product);
-                    },
-                  ),
+                  child: _buildContentArea(),
                 ),
               ],
             ),
           ),
 
-          // --- COLONNA DESTRA: CARRELLO ---
+          // --- COLONNA DESTRA (Carrello) ---
           Expanded(
-            flex: 3, // 30% dello schermo
+            flex: 3,
             child: Container(
               color: kSurfaceColor,
               child: Column(
@@ -151,15 +284,17 @@ class _TotemPageState extends State<TotemPage> {
                     ),
                   ),
                   const Divider(color: Colors.white24, height: 40),
+                  
+                  // Lista elementi carrello
                   Expanded(
                     child: _cart.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              children: [
+                              children: const [
                                 Icon(Icons.shopping_cart_outlined,
                                     size: 60, color: Colors.white24),
-                                const SizedBox(height: 10),
+                                SizedBox(height: 10),
                                 Text("Il carrello è vuoto",
                                     style: TextStyle(color: Colors.white54)),
                               ],
@@ -177,6 +312,8 @@ class _TotemPageState extends State<TotemPage> {
                             },
                           ),
                   ),
+                  
+                  // Sezione Totale e Bottone
                   _buildCheckoutSection(),
                 ],
               ),
@@ -187,21 +324,103 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // HEADER (Logo e Titolo)
-  Widget _buildHeader() {
+  // --- GESTIONE CONTENUTO CENTRALE (Loading/Error/Grid) ---
+  Widget _buildContentArea() {
+    if (_isFetchingProducts) {
+      return const Center(child: CircularProgressIndicator(color: kPrimaryColor));
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 50, color: Colors.red),
+            const SizedBox(height: 10),
+            Text(_errorMessage!, textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _fetchProducts,
+              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
+              child: const Text("Riprova", style: TextStyle(color: Colors.black)),
+            )
+          ],
+        ),
+      );
+    }
+
+    if (_visibleProducts.isEmpty) {
+      return const Center(child: Text("Nessun prodotto disponibile in questa categoria."));
+    }
+
+    // Griglia Prodotti Effettiva
+    return GridView.builder(
+      padding: const EdgeInsets.all(20),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3, 
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 20,
+        mainAxisSpacing: 20,
+      ),
+      itemCount: _visibleProducts.length,
+      itemBuilder: (context, index) {
+        return _buildProductCard(_visibleProducts[index]);
+      },
+    );
+  }
+
+  // --- HEADER: LOGO E CATEGORIE ---
+  Widget _buildTopBar() {
+    // Otteniamo le categorie uniche dai prodotti scaricati
+    Set<String> categories = {'TUTTE'};
+    if (!_isFetchingProducts && _products.isNotEmpty) {
+      categories.addAll(_products.map((p) => p.category));
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(30, 50, 30, 20),
+      height: 100,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white10)),
+      ),
       child: Row(
         children: [
-          Icon(Icons.lunch_dining, color: kPrimaryColor, size: 40),
-          const SizedBox(width: 15),
-          const Text(
-            "SMASHBOSS",
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              fontStyle: FontStyle.italic,
-              letterSpacing: 1.0,
+          // Logo (Placeholder o Asset)
+          const Icon(Icons.fastfood, color: kPrimaryColor, size: 50),
+          const SizedBox(width: 20),
+          Container(width: 1, height: 40, color: Colors.white24),
+          const SizedBox(width: 20),
+
+          // Categorie
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: categories.map((cat) {
+                final isSelected = _selectedCategory == cat;
+                return Center(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedCategory = cat),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 15),
+                      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? kPrimaryColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                            color: isSelected ? kPrimaryColor : Colors.white24),
+                      ),
+                      child: Text(
+                        cat,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.black : Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -209,47 +428,7 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // BARRA CATEGORIE
-  Widget _buildCategorySelector() {
-    final categories = ['TUTTE', 'PANINI', 'FRITTI', 'BEVANDE'];
-    return SizedBox(
-      height: 60,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final cat = categories[index];
-          final isSelected = _selectedCategory == cat;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedCategory = cat),
-            child: Container(
-              margin: const EdgeInsets.only(right: 15),
-              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected ? kPrimaryColor : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: isSelected ? kPrimaryColor : Colors.white24),
-              ),
-              child: Center(
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.black : Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // CARD PRODOTTO
+  // --- CARD DEL PRODOTTO ---
   Widget _buildProductCard(Product product) {
     return Container(
       decoration: BoxDecoration(
@@ -257,10 +436,8 @@ class _TotemPageState extends State<TotemPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10, offset: const Offset(0, 5)),
         ],
       ),
       child: Material(
@@ -279,40 +456,28 @@ class _TotemPageState extends State<TotemPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  product.category,
-                  style: const TextStyle(
-                      color: kPrimaryColor, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+                Text(product.category,
+                    style: const TextStyle(
+                        color: kPrimaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(
                   product.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
-                  ),
+                      fontSize: 20, fontWeight: FontWeight.w800, height: 1.1),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "€ ${product.price.toStringAsFixed(2)}",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70,
-                      ),
-                    ),
+                    Text("€ ${product.price.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: const BoxDecoration(
-                        color: kPrimaryColor,
-                        shape: BoxShape.circle,
-                      ),
+                          color: kPrimaryColor, shape: BoxShape.circle),
                       child: const Icon(Icons.add, color: Colors.black),
                     ),
                   ],
@@ -325,7 +490,7 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // ELEMENTO CARRELLO
+  // --- RIGA PRODOTTO NEL CARRELLO ---
   Widget _buildCartItem(Product product, int qty) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -354,8 +519,7 @@ class _TotemPageState extends State<TotemPage> {
             onPressed: () => _removeFromCart(product),
           ),
           Text("$qty",
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           IconButton(
             icon: const Icon(Icons.add_circle, color: kPrimaryColor),
             onPressed: () => _addToCart(product),
@@ -365,11 +529,11 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // SEZIONE CHECKOUT
+  // --- SEZIONE CHECKOUT ---
   Widget _buildCheckoutSection() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.black38,
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
@@ -382,10 +546,7 @@ class _TotemPageState extends State<TotemPage> {
               Text(
                 "€ ${_totalPrice.toStringAsFixed(2)}",
                 style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                ),
+                    fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white),
               ),
             ],
           ),
@@ -394,15 +555,9 @@ class _TotemPageState extends State<TotemPage> {
             width: double.infinity,
             height: 60,
             child: ElevatedButton(
-              onPressed: _cart.isEmpty ? null : () {
-                // Azione Checkout
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("ORDINE INVIATO IN CUCINA! 🍔🔥"),
-                    backgroundColor: kPrimaryColor,
-                  ),
-                );
-              },
+              onPressed: (_cart.isEmpty || _isSendingOrder)
+                  ? null
+                  : _submitOrderToFlask,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimaryColor,
                 foregroundColor: Colors.black,
@@ -410,10 +565,13 @@ class _TotemPageState extends State<TotemPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                "VAI AL PAGAMENTO",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              child: _isSendingOrder
+                  ? const CircularProgressIndicator(color: Colors.black)
+                  : const Text(
+                      "PAGA E ORDINA",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
