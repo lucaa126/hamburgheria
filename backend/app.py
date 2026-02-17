@@ -4,9 +4,8 @@ import os
 from database_wrapper import DatabaseWrapper
 from dotenv import load_dotenv
 
-# carica le variabili dal file .env
+# Carica le variabili dal file .env
 load_dotenv()
-import os
 print("HOST:", os.getenv("DB_HOST"))
 print("PORT:", os.getenv("DB_PORT"))
 
@@ -32,10 +31,14 @@ def get_products():
 @app.route("/products", methods=["POST"])
 def add_product():
     data = request.json
+    # Prende l'immagine se c'è, altrimenti stringa vuota
+    immagine_base64 = data.get("immagine", "")
+    
     db.add_product(
         data["nome"],
         data["prezzo"],
-        data["categoria"]
+        data["categoria"],
+        immagine_base64
     )
     return jsonify({"message": "Prodotto aggiunto"}), 201
 

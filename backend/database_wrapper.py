@@ -42,13 +42,14 @@ class DatabaseWrapper:
 
     def create_tables(self):
 
-        # PRODOTTI
+        # PRODOTTI (Aggiornato con LONGTEXT per l'immagine)
         self.execute_query("""
         CREATE TABLE IF NOT EXISTS products (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
             prezzo DECIMAL(6,2) NOT NULL,
-            categoria VARCHAR(50) NOT NULL
+            categoria VARCHAR(50) NOT NULL,
+            immagine LONGTEXT
         )
         """)
 
@@ -80,10 +81,10 @@ class DatabaseWrapper:
     def get_products(self):
         return self.fetch_query("SELECT * FROM products")
 
-    def add_product(self, nome, prezzo, categoria):
+    def add_product(self, nome, prezzo, categoria, immagine=""):
         self.execute_query(
-            "INSERT INTO products (nome, prezzo, categoria) VALUES (%s, %s, %s)",
-            (nome, prezzo, categoria)
+            "INSERT INTO products (nome, prezzo, categoria, immagine) VALUES (%s, %s, %s, %s)",
+            (nome, prezzo, categoria, immagine)
         )
 
     def delete_product(self, product_id):
