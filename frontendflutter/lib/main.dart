@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:convert'; // Per convertire i dati in JSON
+import 'dart:convert'; // Per convertire i dati in JSON e Base64
+import 'dart:typed_data'; // Per gestire i byte delle immagini
 import 'package:http/http.dart' as http; // Per le chiamate HTTP
 
 void main() {
@@ -9,7 +10,6 @@ void main() {
 // ==============================================================================
 // ⚠️ CONFIGURAZIONE SERVER
 // ==============================================================================
-// Ho inserito l'URL che ho visto nei tuoi log. Se cambia, aggiornalo qui.
 const String baseUrl = 'https://expert-space-fishstick-r4qgpxpwxrw9h5pg5-5000.app.github.dev';
 
 // --- COSTANTI DI STILE ---
@@ -24,6 +24,7 @@ class Product {
   final String category;
   final double price;
   final IconData icon;
+  final String? imageBase64; // Aggiunto il campo per l'immagine
 
   Product({
     required this.id,
@@ -31,19 +32,16 @@ class Product {
     required this.category,
     required this.price,
     required this.icon,
+    this.imageBase64,
   });
 
-  // Factory per creare un prodotto dal JSON del server Flask
-  // CORRETTO: Gestisce il prezzo anche se arriva come Stringa ("3.00")
   factory Product.fromJson(Map<String, dynamic> json) {
     dynamic rawPrice = json['prezzo'];
     double finalPrice = 0.0;
 
     if (rawPrice is String) {
-      // Se è una stringa (es: "3.00"), la convertiamo
       finalPrice = double.tryParse(rawPrice) ?? 0.0;
     } else if (rawPrice is num) {
-      // Se è già un numero (int o double)
       finalPrice = rawPrice.toDouble();
     }
 
@@ -53,10 +51,13 @@ class Product {
       category: json['categoria'],
       price: finalPrice,
       icon: _getIconForCategory(json['categoria']),
+      // Prende l'immagine dal JSON (se esiste ed è non vuota)
+      imageBase64: (json['immagine'] != null && json['immagine'].toString().isNotEmpty) 
+          ? json['immagine'] 
+          : null,
     );
   }
 
-  // Helper per assegnare icone in base alla categoria
   static IconData _getIconForCategory(String category) {
     switch (category.toUpperCase()) {
       case 'PANINI':
@@ -106,7 +107,6 @@ class _TotemPageState extends State<TotemPage> {
   String _selectedCategory = 'TUTTE';
   final Map<Product, int> _cart = {};
   
-  // Stato per il caricamento prodotti
   List<Product> _products = [];
   bool _isFetchingProducts = true;
   bool _isSendingOrder = false;
@@ -115,7 +115,7 @@ class _TotemPageState extends State<TotemPage> {
   @override
   void initState() {
     super.initState();
-    _fetchProducts(); // Carica i prodotti all'avvio
+    _fetchProducts();
   }
 
   // ============================================================================
@@ -128,7 +128,6 @@ class _TotemPageState extends State<TotemPage> {
     });
 
     try {
-      print("Fetching products from: $baseUrl/products");
       final response = await http.get(Uri.parse('$baseUrl/products'));
 
       if (response.statusCode == 200) {
@@ -141,7 +140,6 @@ class _TotemPageState extends State<TotemPage> {
         throw Exception("Errore server: ${response.statusCode}");
       }
     } catch (e) {
-      print("Errore fetch: $e");
       setState(() {
         _isFetchingProducts = false;
         _errorMessage = "Impossibile caricare il menu.\nVerifica la connessione.";
@@ -149,7 +147,6 @@ class _TotemPageState extends State<TotemPage> {
     }
   }
 
-  // Filtra i prodotti in base alla categoria selezionata
   List<Product> get _visibleProducts {
     if (_selectedCategory == 'TUTTE') return _products;
     return _products.where((p) => p.category == _selectedCategory).toList();
@@ -199,8 +196,6 @@ class _TotemPageState extends State<TotemPage> {
         "items": itemsPayload
       };
 
-      print("Invio ordine a: $baseUrl/orders");
-      
       final response = await http.post(
         Uri.parse('$baseUrl/orders'),
         headers: {"Content-Type": "application/json"},
@@ -218,19 +213,19 @@ class _TotemPageState extends State<TotemPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("ORDINE #${respData['order_id']} INVIATO! 🍔"),
+              content: Text("ORDINE #${respData['order_id']} INVIATO! 🍔", style: const TextStyle(fontWeight: FontWeight.bold)),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
       } else {
-        throw Exception("Server Error (${response.statusCode})");
+        throw Exception("Server Error");
       }
 
     } catch (e) {
       setState(() => _isSendingOrder = false);
-      print("ERRORE INVIO: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -243,6 +238,40 @@ class _TotemPageState extends State<TotemPage> {
   }
 
   // ============================================================================
+  // WIDGET HELPER: RENDER IMMAGINE BASE64 O FALLBACK ALL'ICONA
+  // ============================================================================
+  Widget _buildProductImage(String? base64String, IconData fallbackIcon, {double borderRadius = 8, bool isCartItem = false}) {
+    if (base64String == null || base64String.isEmpty) {
+      return Icon(fallbackIcon, size: isCartItem ? 24 : 60, color: isCartItem ? kPrimaryColor : Colors.white24);
+    }
+    
+    try {
+      // Rimuoviamo l'eventuale intestazione (es: data:image/png;base64,)
+      String cleanBase64 = base64String;
+      if (base64String.contains(',')) {
+        cleanBase64 = base64String.split(',').last;
+      }
+      
+      // Decodifichiamo i byte
+      Uint8List imageBytes = base64Decode(cleanBase64);
+      
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Image.memory(
+          imageBytes,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          // Se per caso i byte sono corrotti, mostra l'icona di fallback
+          errorBuilder: (context, error, stackTrace) => Icon(fallbackIcon, size: isCartItem ? 24 : 60, color: Colors.white24),
+        ),
+      );
+    } catch (e) {
+      return Icon(fallbackIcon, size: isCartItem ? 24 : 60, color: Colors.white24);
+    }
+  }
+
+  // ============================================================================
   // UI BUILDER
   // ============================================================================
   @override
@@ -250,23 +279,16 @@ class _TotemPageState extends State<TotemPage> {
     return Scaffold(
       body: Row(
         children: [
-          // --- COLONNA SINISTRA (Prodotti) ---
           Expanded(
             flex: 7,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTopBar(), 
-                
-                // Area Contenuto (Loader, Errore o Griglia)
-                Expanded(
-                  child: _buildContentArea(),
-                ),
+                Expanded(child: _buildContentArea()),
               ],
             ),
           ),
-
-          // --- COLONNA DESTRA (Carrello) ---
           Expanded(
             flex: 3,
             child: Container(
@@ -284,27 +306,22 @@ class _TotemPageState extends State<TotemPage> {
                     ),
                   ),
                   const Divider(color: Colors.white24, height: 40),
-                  
-                  // Lista elementi carrello
                   Expanded(
                     child: _cart.isEmpty
-                        ? Center(
+                        ? const Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.shopping_cart_outlined,
-                                    size: 60, color: Colors.white24),
+                              children: [
+                                Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.white24),
                                 SizedBox(height: 10),
-                                Text("Il carrello è vuoto",
-                                    style: TextStyle(color: Colors.white54)),
+                                Text("Il carrello è vuoto", style: TextStyle(color: Colors.white54)),
                               ],
                             ),
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             itemCount: _cart.length,
-                            separatorBuilder: (ctx, i) =>
-                                const Divider(color: Colors.white10),
+                            separatorBuilder: (ctx, i) => const Divider(color: Colors.white10),
                             itemBuilder: (ctx, i) {
                               final product = _cart.keys.elementAt(i);
                               final qty = _cart[product]!;
@@ -312,8 +329,6 @@ class _TotemPageState extends State<TotemPage> {
                             },
                           ),
                   ),
-                  
-                  // Sezione Totale e Bottone
                   _buildCheckoutSection(),
                 ],
               ),
@@ -324,11 +339,8 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // --- GESTIONE CONTENUTO CENTRALE (Loading/Error/Grid) ---
   Widget _buildContentArea() {
-    if (_isFetchingProducts) {
-      return const Center(child: CircularProgressIndicator(color: kPrimaryColor));
-    }
+    if (_isFetchingProducts) return const Center(child: CircularProgressIndicator(color: kPrimaryColor));
 
     if (_errorMessage != null) {
       return Center(
@@ -353,12 +365,11 @@ class _TotemPageState extends State<TotemPage> {
       return const Center(child: Text("Nessun prodotto disponibile in questa categoria."));
     }
 
-    // Griglia Prodotti Effettiva
     return GridView.builder(
       padding: const EdgeInsets.all(20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3, 
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.80, // Leggermente ritoccato per far respirare meglio l'immagine
         crossAxisSpacing: 20,
         mainAxisSpacing: 20,
       ),
@@ -369,9 +380,7 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // --- HEADER: LOGO E CATEGORIE ---
   Widget _buildTopBar() {
-    // Otteniamo le categorie uniche dai prodotti scaricati
     Set<String> categories = {'TUTTE'};
     if (!_isFetchingProducts && _products.isNotEmpty) {
       categories.addAll(_products.map((p) => p.category));
@@ -380,18 +389,13 @@ class _TotemPageState extends State<TotemPage> {
     return Container(
       height: 100,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white10)),
-      ),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white10))),
       child: Row(
         children: [
-          // Logo (Placeholder o Asset)
           const Icon(Icons.fastfood, color: kPrimaryColor, size: 50),
           const SizedBox(width: 20),
           Container(width: 1, height: 40, color: Colors.white24),
           const SizedBox(width: 20),
-
-          // Categorie
           Expanded(
             child: ListView(
               scrollDirection: Axis.horizontal,
@@ -406,8 +410,7 @@ class _TotemPageState extends State<TotemPage> {
                       decoration: BoxDecoration(
                         color: isSelected ? kPrimaryColor : Colors.transparent,
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                            color: isSelected ? kPrimaryColor : Colors.white24),
+                        border: Border.all(color: isSelected ? kPrimaryColor : Colors.white24),
                       ),
                       child: Text(
                         cat,
@@ -428,16 +431,13 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // --- CARD DEL PRODOTTO ---
   Widget _buildProductCard(Product product) {
     return Container(
       decoration: BoxDecoration(
         color: kSurfaceColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10, offset: const Offset(0, 5)),
+          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
         ],
       ),
       child: Material(
@@ -446,38 +446,39 @@ class _TotemPageState extends State<TotemPage> {
           onTap: () => _addToCart(product),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Area Immagine estesa
                 Expanded(
-                  child: Center(
-                    child: Icon(product.icon, size: 80, color: Colors.white),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    // Qua inseriamo il nuovo widget per l'immagine
+                    child: _buildProductImage(product.imageBase64, product.icon, borderRadius: 12),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(product.category,
-                    style: const TextStyle(
-                        color: kPrimaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Text(product.category, style: const TextStyle(color: kPrimaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(
                   product.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800, height: 1.1),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, height: 1.1),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("€ ${product.price.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    Text("€ ${product.price.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                          color: kPrimaryColor, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: kPrimaryColor, shape: BoxShape.circle),
                       child: const Icon(Icons.add, color: Colors.black),
                     ),
                   ],
@@ -490,27 +491,26 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // --- RIGA PRODOTTO NEL CARRELLO ---
   Widget _buildCartItem(Product product, int qty) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
+          // Miniatura dell'immagine per il carrello
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 45,
+            height: 45,
             decoration: BoxDecoration(
                 color: Colors.black26, borderRadius: BorderRadius.circular(8)),
-            child: Icon(product.icon, size: 24, color: kPrimaryColor),
+            child: _buildProductImage(product.imageBase64, product.icon, borderRadius: 8, isCartItem: true),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(product.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text("€ ${product.price.toStringAsFixed(2)}",
-                    style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text("€ ${product.price.toStringAsFixed(2)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           ),
@@ -518,8 +518,7 @@ class _TotemPageState extends State<TotemPage> {
             icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
             onPressed: () => _removeFromCart(product),
           ),
-          Text("$qty",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text("$qty", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           IconButton(
             icon: const Icon(Icons.add_circle, color: kPrimaryColor),
             onPressed: () => _addToCart(product),
@@ -529,7 +528,6 @@ class _TotemPageState extends State<TotemPage> {
     );
   }
 
-  // --- SEZIONE CHECKOUT ---
   Widget _buildCheckoutSection() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -545,8 +543,7 @@ class _TotemPageState extends State<TotemPage> {
               const Text("TOTALE", style: TextStyle(color: Colors.grey)),
               Text(
                 "€ ${_totalPrice.toStringAsFixed(2)}",
-                style: const TextStyle(
-                    fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white),
               ),
             ],
           ),
@@ -555,23 +552,15 @@ class _TotemPageState extends State<TotemPage> {
             width: double.infinity,
             height: 60,
             child: ElevatedButton(
-              onPressed: (_cart.isEmpty || _isSendingOrder)
-                  ? null
-                  : _submitOrderToFlask,
+              onPressed: (_cart.isEmpty || _isSendingOrder) ? null : _submitOrderToFlask,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimaryColor,
                 foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _isSendingOrder
                   ? const CircularProgressIndicator(color: Colors.black)
-                  : const Text(
-                      "PAGA E ORDINA",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                  : const Text("PAGA E ORDINA", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
