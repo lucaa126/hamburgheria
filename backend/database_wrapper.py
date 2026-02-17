@@ -88,6 +88,12 @@ class DatabaseWrapper:
         )
 
     def delete_product(self, product_id):
+        # 1. PRIMA eliminiamo i riferimenti di questo prodotto negli ordini
+        self.execute_query(
+            "DELETE FROM order_items WHERE product_id = %s",
+            (product_id,)
+        )
+        # 2. POI eliminiamo effettivamente il prodotto dal menù
         self.execute_query(
             "DELETE FROM products WHERE id = %s",
             (product_id,)

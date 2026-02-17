@@ -10,7 +10,9 @@ print("HOST:", os.getenv("DB_HOST"))
 print("PORT:", os.getenv("DB_PORT"))
 
 app = Flask(__name__)
-CORS(app)
+
+# ⚠️ CORS POTENZIATO: Permette esplicitamente tutti i metodi
+CORS(app, resources={r"/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 db = DatabaseWrapper(
     host=os.getenv("DB_HOST"),
@@ -31,7 +33,6 @@ def get_products():
 @app.route("/products", methods=["POST"])
 def add_product():
     data = request.json
-    # Prende l'immagine se c'è, altrimenti stringa vuota
     immagine_base64 = data.get("immagine", "")
     
     db.add_product(
@@ -42,10 +43,18 @@ def add_product():
     )
     return jsonify({"message": "Prodotto aggiunto"}), 201
 
-@app.route("/products/<int:id>", methods=["DELETE"])
+@app.route("/products/<int:id>", methods=["DELETE", "OPTIONS"])
 def delete_product(id):
-    db.delete_product(id)
-    return jsonify({"message": "Prodotto eliminato"})
+    if request.method == "OPTIONS":
+        return jsonify({}), 200 # Risponde OK al preflight del browser
+        
+    try:
+        db.delete_product(id)
+        return jsonify({"message": f"Prodotto {id} eliminato"}), 200
+    except Exception as e:
+        # Se il database blocca l'operazione, ce lo dice chiaramente!
+        print(f"❌ ERRORE DATABASE DURANTE L'ELIMINAZIONE: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # =========================
 # ORDINI

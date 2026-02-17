@@ -22,7 +22,7 @@ interface Order {
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, CommonModule, RouterModule, FormsModule],
-  templateUrl: './app.html',
+  templateUrl: './app.html', // Assicurati che il nome combaci col tuo file HTML
   styleUrl: './app.css'
 })
 export class App implements OnInit, OnDestroy {
@@ -42,7 +42,6 @@ export class App implements OnInit, OnDestroy {
 
   categories = ['Tutte', 'Panini', 'Fritti', 'Bevande', 'Menu'];
   
-  // Aggiunto campo immagine vuoto di default
   newProduct = { nome: '', prezzo: 0, categoria: 'Panini', immagine: '' };
   
   private pollingInterval: any;
@@ -110,15 +109,27 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
+  // 🗑️ GESTIONE ELIMINAZIONE AGGIORNATA
   deleteMenuItem(id: number) {
-    if(confirm('Sei sicuro di voler eliminare questo prodotto?')) {
-      this.http.delete(`${this.apiUrl}/products/${id}`).subscribe({
-        next: () => {
-          this.loadProducts();
-        },
-        error: (err) => console.error('Errore eliminazione:', err)
-      });
+    console.log("Tentativo di eliminazione ID:", id); 
+
+    if (id === undefined || id === null) {
+      console.error("ID non valido");
+      return;
     }
+
+    console.log("Inviando la richiesta di eliminazione al server...");
+
+    // ⚠️ Rimosso il confirm() per evitare blocchi del browser in Codespaces
+    this.http.delete(`${this.apiUrl}/products/${id}`).subscribe({
+      next: () => {
+        console.log("✅ Prodotto eliminato con successo dal server!");
+        this.loadProducts();
+      },
+      error: (err) => {
+        console.error('❌ Errore eliminazione dal server:', err);
+      }
+    });
   }
 
   saveProduct() {
