@@ -4,77 +4,102 @@ import os
 from database_wrapper import DatabaseWrapper
 from dotenv import load_dotenv
 
-# Carica le variabili dal file .env
+# Carica le variabili d'ambiente (.env)
 load_dotenv()
-print("HOST:", os.getenv("DB_HOST"))
-print("PORT:", os.getenv("DB_PORT"))
 
 app = Flask(__name__)
 
-# ⚠️ CORS POTENZIATO: Permette esplicitamente tutti i metodi
+# Configurazione CORS completa per accettare richieste da Codespaces
 CORS(app, resources={r"/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-db = DatabaseWrapper(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    database=os.getenv("DB_NAME"),
-    port=os.getenv("DB_PORT")
-)
+# Inizializzazione Database
+try:
+    db = DatabaseWrapper(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
+        port=os.getenv("DB_PORT")
+    )
+    print("✅ Connessione al Database riuscita!")
+except Exception as e:
+    print(f"❌ Errore di connessione al DB: {e}")
 
 # =========================
-# PRODOTTI
+# ROTTE PRODOTTI
 # =========================
 
 @app.route("/products", methods=["GET"])
 def get_products():
-    return jsonify(db.get_products())
+    try:
+        products = db.get_products()
+        return jsonify(products), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/products", methods=["POST"])
 def add_product():
-    data = request.json
-    immagine_base64 = data.get("immagine", "")
-    
-    db.add_product(
-        data["nome"],
-        data["prezzo"],
-        data["categoria"],
-        immagine_base64
-    )
-    return jsonify({"message": "Prodotto aggiunto"}), 201
+    try:
+        data = request.json
+        # Gestione sicura dei dati in ingresso
+        nome = data.get("nome")
+        prezzo = data.get("prezzo")
+        categoria = data.get("categoria")
+        immagine_base64 = data.get("immagine", "")
 
-@app.route("/products/<int:id>", methods=["DELETE", "OPTIONS"])
+        if not nome or not prezzo:
+            return jsonify({"error": "Nome e prezzo sono obbligatori"}), 400
+
+        db.add_product(nome, prezzo, categoria, immagine_base64)
+        return jsonify({"message": "Prodotto aggiunto con successo"}), 201
+    except Exception as e:
+        print(f"❌ Errore nel salvataggio prodotto: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/products/<int:id>", methods=["DELETE"])
 def delete_product(id):
-    if request.method == "OPTIONS":
-        return jsonify({}), 200 # Risponde OK al preflight del browser
-        
     try:
         db.delete_product(id)
         return jsonify({"message": f"Prodotto {id} eliminato"}), 200
     except Exception as e:
-        # Se il database blocca l'operazione, ce lo dice chiaramente!
-        print(f"❌ ERRORE DATABASE DURANTE L'ELIMINAZIONE: {e}")
+        print(f"❌ Errore nell'eliminazione: {e}")
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# ORDINI
+# ROTTE ORDINI
 # =========================
 
 @app.route("/orders", methods=["POST"])
 def create_order():
-    data = request.json
-    order_id = db.create_order(data["items"])
-    return jsonify({"message": "Ordine creato", "order_id": order_id})
+    try:
+        data = request.json
+        items = data.get("items", [])
+        if not items:
+            return jsonify({"error": "Nessun prodotto nell'ordine"}), 400
+            
+        order_id = db.create_order(items)
+        return jsonify({"message": "Ordine creato", "order_id": order_id}), 201
+    except Exception as e:
+        print(f"❌ Errore creazione ordine: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/orders", methods=["GET"])
 def get_orders():
-    return jsonify(db.get_orders())
+    try:
+        orders = db.get_orders()
+        return jsonify(orders), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/orders/<int:id>", methods=["PUT"])
 def update_order(id):
-    data = request.json
-    db.update_order_status(id, data["stato"])
-    return jsonify({"message": "Stato aggiornato"})
+    try:
+        data = request.json
+        nuovo_stato = data.get("stato")
+        db.update_order_status(id, nuovo_stato)
+        return jsonify({"message": "Stato aggiornato"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

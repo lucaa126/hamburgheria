@@ -11,7 +11,8 @@ class DatabaseWrapper:
             'port': int(port),
             'cursorclass': pymysql.cursors.DictCursor
         }
-
+        
+        # Crea le tabelle appena viene inizializzata la classe
         self.create_tables()
 
     def connect(self):
@@ -23,26 +24,29 @@ class DatabaseWrapper:
 
     def execute_query(self, query, params=()):
         conn = self.connect()
-        with conn.cursor() as cursor:
-            cursor.execute(query, params)
-            conn.commit()
-        conn.close()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                conn.commit()
+        finally:
+            conn.close()
 
     def fetch_query(self, query, params=()):
         conn = self.connect()
-        with conn.cursor() as cursor:
-            cursor.execute(query, params)
-            result = cursor.fetchall()
-        conn.close()
-        return result
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                result = cursor.fetchall()
+            return result
+        finally:
+            conn.close()
 
     # ========================
     # CREAZIONE TABELLE
     # ========================
 
     def create_tables(self):
-
-        # PRODOTTI (Aggiornato con LONGTEXT per l'immagine)
+        # 1. Tabella PRODOTTI (con colonna immagine LONGTEXT)
         self.execute_query("""
         CREATE TABLE IF NOT EXISTS products (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -53,7 +57,7 @@ class DatabaseWrapper:
         )
         """)
 
-        # ORDINI
+        # 2. Tabella ORDINI
         self.execute_query("""
         CREATE TABLE IF NOT EXISTS orders (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +66,7 @@ class DatabaseWrapper:
         )
         """)
 
-        # DETTAGLIO ORDINI
+        # 3. Tabella DETTAGLIO ORDINI
         self.execute_query("""
         CREATE TABLE IF NOT EXISTS order_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -70,7 +74,7 @@ class DatabaseWrapper:
             product_id INT,
             quantita INT,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-            FOREIGN KEY (product_id) REFERENCES products(id)
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         )
         """)
 
@@ -88,16 +92,9 @@ class DatabaseWrapper:
         )
 
     def delete_product(self, product_id):
-        # 1. PRIMA eliminiamo i riferimenti di questo prodotto negli ordini
-        self.execute_query(
-            "DELETE FROM order_items WHERE product_id = %s",
-            (product_id,)
-        )
-        # 2. POI eliminiamo effettivamente il prodotto dal menù
-        self.execute_query(
-            "DELETE FROM products WHERE id = %s",
-            (product_id,)
-        )
+        # Grazie al 'ON DELETE CASCADE' definito nella tabella, 
+        # basta cancellare il prodotto e si cancellano anche le righe in order_items
+        self.execute_query("DELETE FROM products WHERE id = %s", (product_id,))
 
     # ========================
     # ORDINI
@@ -105,25 +102,26 @@ class DatabaseWrapper:
 
     def create_order(self, items):
         conn = self.connect()
-        with conn.cursor() as cursor:
+        try:
+            with conn.cursor() as cursor:
+                # 1. Crea l'ordine testata
+                cursor.execute("INSERT INTO orders (stato) VALUES ('In preparazione')")
+                order_id = cursor.lastrowid
 
-            # crea ordine
-            cursor.execute("INSERT INTO orders (stato) VALUES ('In preparazione')")
-            order_id = cursor.lastrowid
-
-            # inserisce prodotti
-            for item in items:
-                cursor.execute("""
-                    INSERT INTO order_items (order_id, product_id, quantita)
-                    VALUES (%s, %s, %s)
-                """, (order_id, item["product_id"], item["quantita"]))
-
-            conn.commit()
-
-        conn.close()
-        return order_id
+                # 2. Inserisce i prodotti collegati
+                for item in items:
+                    cursor.execute("""
+                        INSERT INTO order_items (order_id, product_id, quantita)
+                        VALUES (%s, %s, %s)
+                    """, (order_id, item["product_id"], item["quantita"]))
+                
+                conn.commit()
+                return order_id
+        finally:
+            conn.close()
 
     def get_orders(self):
+        # Recupera gli ordini ordinati dal più recente
         return self.fetch_query("SELECT * FROM orders ORDER BY data_creazione DESC")
 
     def update_order_status(self, order_id, nuovo_stato):

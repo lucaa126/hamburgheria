@@ -4,6 +4,7 @@ import { RouterOutlet, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 
+// Interfacce per i dati
 interface Product {
   id: number;
   nome: string;
@@ -22,13 +23,13 @@ interface Order {
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, CommonModule, RouterModule, FormsModule],
-  templateUrl: './app.html', // Assicurati che il nome combaci col tuo file HTML
+  templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   
-  // ⚠️ ASSICURATI DI INSERIRE IL TUO LINK CODESPACES CORRETTO (senza lo slash finale)
+  // ⚠️ ATTENZIONE: Controlla che questo link sia quello attivo della porta 5000
   private apiUrl = 'https://silver-space-potato-r47pj5vpv74jh5r47-5000.app.github.dev';
 
   // --- STATO CON SIGNALS ---
@@ -42,6 +43,7 @@ export class App implements OnInit, OnDestroy {
 
   categories = ['Tutte', 'Panini', 'Fritti', 'Bevande', 'Menu'];
   
+  // Oggetto per il nuovo prodotto
   newProduct = { nome: '', prezzo: 0, categoria: 'Panini', immagine: '' };
   
   private pollingInterval: any;
@@ -50,9 +52,11 @@ export class App implements OnInit, OnDestroy {
     this.loadOrders();
     this.loadProducts();
 
-    // AUTO-REFRESH: Controlla nuovi ordini ogni 5 secondi
+    // Polling: aggiorna gli ordini ogni 5 secondi
     this.pollingInterval = setInterval(() => {
-      this.loadOrders();
+      if (this.activeTab() === 'ordini') {
+        this.loadOrders();
+      }
     }, 5000);
   }
 
@@ -62,7 +66,7 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  // --- LOGICA INTERFACCIA ---
+  // --- UI HELPERS ---
   toggleMenu() { this.isMobileMenuOpen.update(val => !val); }
   closeMenu() { this.isMobileMenuOpen.set(false); }
   
@@ -70,75 +74,79 @@ export class App implements OnInit, OnDestroy {
   
   closeModal() { 
     this.showAddModal.set(false); 
+    // Reset del form
     this.newProduct = { nome: '', prezzo: 0, categoria: 'Panini', immagine: '' };
   }
 
-  // Lettura del file immagine e conversione in Base64
+  // --- GESTIONE IMMAGINE (Base64) ---
   onFileSelected(event: any) {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e: any) => {
+        // Salva la stringa base64 nell'oggetto newProduct
         this.newProduct.immagine = e.target.result;
       };
       reader.readAsDataURL(file);
     }
   }
 
-  // --- CHIAMATE AL BACKEND ---
+  // --- API CALLS ---
+
+  // 1. Carica Prodotti
   loadProducts() {
     this.http.get<Product[]>(`${this.apiUrl}/products`).subscribe({
       next: (data) => this.menuItems.set(data),
-      error: (err) => console.error('Errore prodotti:', err)
+      error: (err) => console.error('Errore caricamento prodotti:', err)
     });
   }
 
+  // 2. Carica Ordini
   loadOrders() {
     this.http.get<Order[]>(`${this.apiUrl}/orders`).subscribe({
       next: (data) => this.orders.set(data),
-      error: (err) => console.error('Errore ordini:', err)
+      error: (err) => console.error('Errore caricamento ordini:', err)
     });
   }
 
+  // 3. Cambia Stato Ordine
   changeOrderStatus(orderId: number, nuovoStato: string) {
     this.http.put(`${this.apiUrl}/orders/${orderId}`, { stato: nuovoStato }).subscribe({
-      next: () => {
-        this.loadOrders();
-      },
-      error: (err) => console.error('Errore stato:', err)
+      next: () => this.loadOrders(),
+      error: (err) => console.error('Errore aggiornamento stato:', err)
     });
   }
 
-  // 🗑️ GESTIONE ELIMINAZIONE AGGIORNATA
+  // 4. Elimina Prodotto
   deleteMenuItem(id: number) {
-    console.log("Tentativo di eliminazione ID:", id); 
+    if (!id) return;
+    
+    // Conferma semplice (opzionale, rimuovere se blocca)
+    if(!confirm("Sei sicuro di voler eliminare questo prodotto?")) return;
 
-    if (id === undefined || id === null) {
-      console.error("ID non valido");
-      return;
-    }
-
-    console.log("Inviando la richiesta di eliminazione al server...");
-
-    // ⚠️ Rimosso il confirm() per evitare blocchi del browser in Codespaces
     this.http.delete(`${this.apiUrl}/products/${id}`).subscribe({
       next: () => {
-        console.log("✅ Prodotto eliminato con successo dal server!");
+        console.log("Prodotto eliminato");
         this.loadProducts();
       },
-      error: (err) => {
-        console.error('❌ Errore eliminazione dal server:', err);
-      }
+      error: (err) => console.error('Errore eliminazione:', err)
     });
   }
 
+  // 5. Salva Nuovo Prodotto
   saveProduct() {
+    console.log("Invio dati:", this.newProduct); // Debug
+
     this.http.post(`${this.apiUrl}/products`, this.newProduct).subscribe({
       next: () => {
+        console.log("Prodotto salvato!");
         this.loadProducts();
         this.closeModal();
       },
-      error: (err) => console.error('Errore salvataggio:', err)
+      error: (err) => {
+        console.error('Errore salvataggio:', err);
+        alert("Errore durante il salvataggio. Controlla la console.");
+      }
     });
   }
 }
