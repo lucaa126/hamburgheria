@@ -1,1 +1,1 @@
-pip install pymysql cryptography flask flask-cors
+pymysql cryptography flask flask-cors python-dotenv

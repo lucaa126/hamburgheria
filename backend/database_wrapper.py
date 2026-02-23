@@ -121,8 +121,28 @@ class DatabaseWrapper:
             conn.close()
 
     def get_orders(self):
-        # Recupera gli ordini ordinati dal più recente
-        return self.fetch_query("SELECT * FROM orders ORDER BY data_creazione DESC")
+        # 1. Recupera tutti gli ordini ordinati dal più recente
+        orders = self.fetch_query("SELECT * FROM orders ORDER BY data_creazione DESC")
+        
+        # 2. Per ogni ordine, andiamo a cercare quali panini/bevande contiene
+        for order in orders:
+            order_id = order['id']
+            query_dettagli = """
+                SELECT oi.quantita, p.nome, p.prezzo 
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = %s
+            """
+            dettagli = self.fetch_query(query_dettagli, (order_id,))
+            
+            # Aggiungiamo l'array dei dettagli all'ordine (è esattamente quello che Angular si aspetta!)
+            order['dettagli'] = dettagli
+            
+            # Formattiamo la data per evitare che Flask vada in errore convertendola in JSON
+            if 'data_creazione' in order and order['data_creazione']:
+                order['data_creazione'] = str(order['data_creazione'])
+
+        return orders
 
     def update_order_status(self, order_id, nuovo_stato):
         self.execute_query(

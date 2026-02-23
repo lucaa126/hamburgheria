@@ -13,10 +13,17 @@ interface Product {
   immagine?: string;
 }
 
+interface OrderItem {
+  nome: string;
+  quantita: number;
+  prezzo?: number;
+}
+
 interface Order {
   id: number;
   stato: string;
   data_creazione: string;
+  dettagli?: OrderItem[]; // Predisposto per ricevere i dettagli dell'ordine
 }
 
 @Component({
@@ -29,8 +36,8 @@ interface Order {
 export class App implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   
-  // ⚠️ ATTENZIONE: Controlla che questo link sia quello attivo della porta 5000
-  private apiUrl = 'https://silver-space-potato-r47pj5vpv74jh5r47-5000.app.github.dev';
+  // ⚠️ ATTENZIONE: Controlla che questo link sia quello attivo della tua porta
+  private apiUrl = 'https://verbose-journey-976jpg4j459r29rxg-5000.app.github.dev';
 
   // --- STATO CON SIGNALS ---
   isMobileMenuOpen = signal(false);
@@ -101,10 +108,14 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
-  // 2. Carica Ordini
+  // 2. Carica Ordini (Filtra i consegnati)
   loadOrders() {
     this.http.get<Order[]>(`${this.apiUrl}/orders`).subscribe({
-      next: (data) => this.orders.set(data),
+      next: (data) => {
+        // Filtra via gli ordini che sono già stati consegnati
+        const ordiniAttivi = data.filter(order => order.stato !== 'Consegnato');
+        this.orders.set(ordiniAttivi);
+      },
       error: (err) => console.error('Errore caricamento ordini:', err)
     });
   }
@@ -112,7 +123,10 @@ export class App implements OnInit, OnDestroy {
   // 3. Cambia Stato Ordine
   changeOrderStatus(orderId: number, nuovoStato: string) {
     this.http.put(`${this.apiUrl}/orders/${orderId}`, { stato: nuovoStato }).subscribe({
-      next: () => this.loadOrders(),
+      next: () => {
+        // Ricaricando gli ordini, se lo stato è "Consegnato" scomparirà dalla UI
+        this.loadOrders();
+      },
       error: (err) => console.error('Errore aggiornamento stato:', err)
     });
   }
@@ -121,7 +135,6 @@ export class App implements OnInit, OnDestroy {
   deleteMenuItem(id: number) {
     if (!id) return;
     
-    // Conferma semplice (opzionale, rimuovere se blocca)
     if(!confirm("Sei sicuro di voler eliminare questo prodotto?")) return;
 
     this.http.delete(`${this.apiUrl}/products/${id}`).subscribe({
@@ -135,7 +148,7 @@ export class App implements OnInit, OnDestroy {
 
   // 5. Salva Nuovo Prodotto
   saveProduct() {
-    console.log("Invio dati:", this.newProduct); // Debug
+    console.log("Invio dati:", this.newProduct);
 
     this.http.post(`${this.apiUrl}/products`, this.newProduct).subscribe({
       next: () => {

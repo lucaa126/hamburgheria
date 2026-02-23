@@ -10,7 +10,7 @@ void main() {
 // ==============================================================================
 // ⚠️ CONFIGURAZIONE SERVER
 // ==============================================================================
-const String baseUrl = 'https://expert-space-fishstick-r4qgpxpwxrw9h5pg5-5000.app.github.dev';
+const String baseUrl = 'https://verbose-journey-976jpg4j459r29rxg-5000.app.github.dev';
 
 // --- COSTANTI DI STILE ---
 const Color kBackgroundColor = Color(0xFF0D0D0D);
