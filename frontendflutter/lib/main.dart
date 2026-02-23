@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert'; // Per convertire i dati in JSON e Base64
 import 'dart:typed_data'; // Per gestire i byte delle immagini
 import 'package:http/http.dart' as http; // Per le chiamate HTTP
+import 'package:audioplayers/audioplayers.dart'; // <-- AGGIUNGI QUESTO IMPORT
 
 void main() {
   runApp(const SmashBossApp());
@@ -112,12 +113,39 @@ class _TotemPageState extends State<TotemPage> {
   bool _isSendingOrder = false;
   String? _errorMessage;
 
+  // <-- 1. CREA L'ISTANZA DELL'AUDIOPLAYER
+  final AudioPlayer _audioPlayer = AudioPlayer(); 
+
   @override
   void initState() {
     super.initState();
     _fetchProducts();
+    _playBackgroundMusic(); // <-- 2. CHIAMA IL METODO ALL'AVVIO
   }
 
+  // <-- 3. METODO PER RIPRODURRE LA MUSICA
+  Future<void> _playBackgroundMusic() async {
+    try {
+      // Imposta la modalità in loop (se vuoi che continui a ripetersi)
+      _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      
+      // Imposta il volume (0.5 = 50%) - utile per non coprire tutto!
+      await _audioPlayer.setVolume(0.3);
+      
+      // Con AssetSource, il pacchetto cerca automaticamente nella cartella 'assets/'
+      // Quindi se il tuo file si chiama 'background.mp3', scrivi solo il nome:
+      await _audioPlayer.play(AssetSource('background.mp3'));
+    } catch (e) {
+      print("Errore riproduzione audio: $e");
+    }
+  }
+
+  // <-- 4. SPEGNI LA MUSICA QUANDO LA PAGINA VIENE CHIUSA
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
   // ============================================================================
   // 📡 SCARICA PRODOTTI DAL SERVER (GET)
   // ============================================================================

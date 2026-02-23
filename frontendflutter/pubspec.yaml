@@ -17,6 +17,7 @@ dependencies:
   http: ^1.2.0
   # The following adds the Cupertino Icons font to your application.
   cupertino_icons: ^1.0.8
+  audioplayers: ^5.2.1  # <-- AGGIUNGI QUESTO
 
 dev_dependencies:
   flutter_test:
@@ -40,3 +41,4 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/logo1.png
+    - assets/background.mp3
